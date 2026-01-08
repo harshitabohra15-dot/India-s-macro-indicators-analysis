@@ -1,0 +1,145 @@
+
+CREATE TABLE India_macro_indicators (
+    Country_Name VARCHAR(50),
+    Year INT,
+    Series_Name VARCHAR(300),
+    Series_code VARCHAR(50),
+    Value FLOAT
+);
+
+
+INSERT INTO India_macro_indicators
+SELECT
+    Country_Name,
+    TRY_CAST(Year AS INT),
+    Series_Name,
+    Series_code,
+    TRY_CAST(Value AS FLOAT)
+FROM India_macro_indicators_raw
+WHERE TRY_CAST(Value AS FLOAT) IS NOT NULL;
+
+
+
+-- overview of table
+Select top 10*
+from India_macro_indicators
+
+-- First and last year
+SELECT TOP 1 *
+FROM India_macro_indicators
+ORDER BY Year;
+
+SELECT TOP 1 *
+FROM India_macro_indicators
+ORDER BY Year DESC;
+
+-- no. of oservation available
+Select 
+Year,
+Count(Value)
+From India_macro_indicators
+Group By Year
+
+
+-- snapshot
+SELECT
+    Year,
+    MAX(CASE WHEN Series_code = 'inflation' THEN Value END) AS inflation,
+    MAX(CASE WHEN Series_code = 'unemployment' THEN Value END) AS unemployment,
+    MAX(CASE WHEN Series_code = 'GDP' THEN Value END) AS GDP,
+    MAX(CASE WHEN Series_code = 'govt_consumption' THEN Value END) AS govt_consumption
+FROM India_macro_indicators
+GROUP BY Year
+ORDER BY Year;
+
+
+
+
+
+--High inflation & low growth years
+SELECT
+    i.Year,
+    i.avg_inflation,
+    g.avg_GDP
+FROM 
+(
+    SELECT
+        Year,
+        AVG(Value) AS avg_inflation
+    FROM India_macro_indicators
+    WHERE Series_code = 'inflation'
+    GROUP BY Year
+    HAVING AVG(Value) > (
+        SELECT AVG(Value)
+        FROM India_macro_indicators
+        WHERE Series_code = 'inflation'
+    )
+) i
+JOIN
+(
+    SELECT
+        Year,
+        AVG(Value) AS avg_GDP
+    FROM India_macro_indicators
+    WHERE Series_code = 'GDP'
+    GROUP BY Year
+    HAVING AVG(Value) < (
+        SELECT AVG(Value)
+        FROM India_macro_indicators
+        WHERE Series_code = 'GDP'
+    )
+) g
+ON i.Year = g.Year
+ORDER BY i.Year;
+
+
+
+--Unemployment during high inflation periods
+
+SELECT
+    i.Year,
+    i.avg_inflation,
+    
+    u.Value as unemployment_value
+FROM 
+(
+    SELECT
+        Year,
+        AVG(Value) AS avg_inflation
+    FROM India_macro_indicators
+    WHERE Series_code = 'inflation'
+    GROUP BY Year
+    HAVING AVG(Value) > (
+        SELECT AVG(Value)
+        FROM India_macro_indicators
+        WHERE Series_code = 'inflation'
+    )
+) i
+JOIN
+(
+    SELECT
+        Year,
+        Value,
+        Series_code
+        FROM India_macro_indicators
+        WHERE Series_code = 'unemployment'
+)u
+
+ON i.Year = u.Year
+ORDER BY i.Year;
+
+
+
+--Long-term averages by decade
+
+SELECT
+    (Year / 10) * 10 AS decade,
+    AVG(CASE WHEN Series_code = 'inflation' THEN Value END) AS avg_inflation,
+    AVG(CASE WHEN Series_code = 'GDP' THEN Value END) AS avg_GDP_growth,
+    AVG(CASE WHEN Series_code = 'unemployment' THEN Value END) AS avg_unemployment,
+    AVG(CASE WHEN Series_code = 'govt_consumption' THEN Value END) AS avg_govt_consumption
+FROM India_macro_indicators
+WHERE Series_code IN ('inflation', 'GDP', 'unemployment', 'govt_consumption')
+GROUP BY (Year / 10) * 10
+ORDER BY decade;
+
